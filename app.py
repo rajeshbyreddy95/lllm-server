@@ -1,24 +1,24 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import threading
-import requests
+import openai
+import os
 
 app = Flask(__name__)
 CORS(app)
 
-def ask_ollama(question, model="gemma3:4b"):
-    url = "http://localhost:11434/api/generate"
-    payload = {
-        "model": model,
-        "prompt": question,
-        "stream": False
-    }
+# Load OpenAI API key from environment variable
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
-    response = requests.post(url, json=payload)
-    if response.status_code == 200:
-        return response.json()["response"].strip()
-    else:
-        return f"Error: {response.status_code} - {response.text}"
+def ask_openai(question, model="gpt-3.5-turbo"):
+    try:
+        response = openai.ChatCompletion.create(
+            model=model,
+            messages=[{"role": "user", "content": question}],
+            temperature=0.7
+        )
+        return response['choices'][0]['message']['content'].strip()
+    except Exception as e:
+        return f"Error: {str(e)}"
 
 @app.route('/', methods=['GET'])
 def home():
@@ -28,17 +28,12 @@ def home():
 def chat_response():
     data = request.get_json()
     question = data.get('message')
-    print(question)
+    print(f"Received: {question}")
     if not question:
         return jsonify({"response": "No question received"}), 400
 
-    answer = ask_ollama(question)
+    answer = ask_openai(question)
     return jsonify({"response": answer})
 
-# Run Flask in a separate thread (if embedding inside another script)
-
-
-# If running standalone:
 if __name__ == "__main__":
     app.run(debug=True, host='0.0.0.0', port=5001)
-
