@@ -1,17 +1,19 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import openai
+from openai import OpenAI
 import os
 
 app = Flask(__name__)
 CORS(app)
-
+client = OpenAI()
 # Load OpenAI API key from environment variable
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 def ask_openai(question, model="gpt-3.5-turbo"):
     try:
-        response = openai.ChatCompletion.create(
+        
+        response = client.ChatCompletion.create(
             model=model,
             messages=[{"role": "user", "content": question}],
             temperature=0.7
