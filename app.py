@@ -1,38 +1,50 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
-from openai import OpenAI
-import os
+import requests
+import json
 
 app = Flask(__name__)
 CORS(app)
 
-# Initializes OpenAI client from OPENAI_API_KEY env variable
-client = OpenAI()
+# 👇 Use public EC2 URL where Docker Ollama is running
+OLLAMA_API_URL = "http://43.204.231.116:11434/api/generate"
 
-def ask_openai(question, model="gpt-3.5-turbo"):
-    try:
-        response = client.chat.completions.create(
-            model=model,
-            messages=[{"role": "user", "content": question}],
-            temperature=0.7
-        )
-        return response.choices[0].message.content.strip()
-    except Exception as e:
-        return f"Error: {str(e)}"
+@app.route('/start', methods=['POST'])
+def start_chat():
+    data = request.get_json()
+    message = data.get('message', '').strip()
 
-@app.route('/', methods=['GET'])
-def home():
-    return jsonify({"message": "Server is running"})
+    if not message:
+        return jsonify({"error": "Missing 'message' field"}), 400
+
+    return jsonify({"status": "started", "message": message})
 
 @app.route('/chat', methods=['POST'])
-def chat_response():
+def stream_response():
     data = request.get_json()
-    question = data.get('message')
-    if not question:
-        return jsonify({"response": "No question received"}), 400
+    prompt = data.get('message', '').strip()
+    model = data.get('model', 'gemma3:4b')  # default to gemma3:4b
 
-    answer = ask_openai(question)
-    return jsonify({"response": answer})
+    if not prompt:
+        return jsonify({"error": "Missing 'message' in request"}), 400
+
+    def generate():
+        payload = {
+            "model": model,
+            "prompt": prompt,
+            "stream": True
+        }
+
+        try:
+            with requests.post(OLLAMA_API_URL, json=payload, stream=True) as response:
+                for line in response.iter_lines():
+                    if line:
+                        chunk = json.loads(line.decode('utf-8'))
+                        yield f"data: {chunk.get('response', '')}\n\n"
+        except requests.exceptions.RequestException as e:
+            yield f"data: [Error connecting to Ollama API: {e}]\n\n"
+
+    return Response(generate(), mimetype='text/event-stream')
 
 if __name__ == "__main__":
     app.run(debug=True, host='0.0.0.0', port=5001)
