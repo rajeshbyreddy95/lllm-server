@@ -18,33 +18,27 @@ def start_chat():
         return jsonify({"error": "Missing 'message' field"}), 400
 
     return jsonify({"status": "started", "message": message})
-
 @app.route('/chat', methods=['POST'])
-def stream_response():
+def chat_response():
     data = request.get_json()
     prompt = data.get('message', '').strip()
-    model = data.get('model', 'gemma3:4b')  # default to gemma3:4b
+    model = data.get('model', 'gemma3:4b')
 
     if not prompt:
         return jsonify({"error": "Missing 'message' in request"}), 400
 
-    def generate():
-        payload = {
-            "model": model,
-            "prompt": prompt,
-            "stream": True
-        }
+    payload = {
+        "model": model,
+        "prompt": prompt,
+        "stream": False  # ⛔ DISABLE STREAMING
+    }
 
-        try:
-            with requests.post(OLLAMA_API_URL, json=payload, stream=True) as response:
-                for line in response.iter_lines():
-                    if line:
-                        chunk = json.loads(line.decode('utf-8'))
-                        yield f"data: {chunk.get('response', '')}\n\n"
-        except requests.exceptions.RequestException as e:
-            yield f"data: [Error connecting to Ollama API: {e}]\n\n"
-
-    return Response(generate(), mimetype='text/event-stream')
+    try:
+        res = requests.post(OLLAMA_API_URL, json=payload)
+        response_json = res.json()
+        return jsonify({"response": response_json.get("response", "").strip()})
+    except requests.exceptions.RequestException as e:
+        return jsonify({"error": f"Connection to Ollama failed: {e}"}), 500
 
 if __name__ == "__main__":
     app.run(debug=True, host='0.0.0.0', port=5001)
