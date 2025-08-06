@@ -18,27 +18,24 @@ def start_chat():
         return jsonify({"error": "Missing 'message' field"}), 400
 
     return jsonify({"status": "started", "message": message})
-@app.route('/chat', methods=['POST'])
-def chat_response():
-    data = request.get_json()
-    prompt = data.get('message', '').strip()
-    model = data.get('model', 'gemma3:4b')
-    print(prompt)
-    if not prompt:
-        return jsonify({"error": "Missing 'message' in request"}), 400
+@app.route('/chat', methods=['GET'])
+def stream_response():
+    prompt = request.args.get('message', '')
+    def generate():
+        url = "http://localhost:11434/api/generate"
+        payload = {
+            "model": "gemma3:4b",
+            "prompt": prompt,
+            "stream": True
+        }
 
-    payload = {
-        "model": model,
-        "prompt": prompt,
-        "stream": False  # ⛔ DISABLE STREAMING
-    }
+        with requests.post(url, json=payload, stream=True) as response:
+            for line in response.iter_lines():
+                if line:
+                    chunk = json.loads(line.decode('utf-8'))
+                    yield f"data: {chunk.get('response', '')}\n\n"
 
-    try:
-        res = requests.post(OLLAMA_API_URL, json=payload)
-        response_json = res.json()
-        return jsonify({"response": response_json.get("response", "").strip()})
-    except requests.exceptions.RequestException as e:
-        return jsonify({"error": f"Connection to Ollama failed: {e}"}), 500
+    return Response(generate(), mimetype='text/event-stream')
 
 if __name__ == "__main__":
     app.run(debug=True, host='0.0.0.0', port=5001)
