@@ -6,7 +6,7 @@ import json
 app = Flask(__name__)
 CORS(app)
 
-OLLAMA_API_URL = "http://localhost:11434/api/generate"
+OLLAMA_API_URL = "http://43.204.231.116:11434/api/generate"
 
 @app.route('/chat', methods=['GET'])
 def stream_response():
