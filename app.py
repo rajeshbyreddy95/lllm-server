@@ -4,7 +4,7 @@ import requests
 import json
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/chat": {"origins": "*"}}, supports_credentials=True)
 
 OLLAMA_API_URL = "http://43.204.231.116:11434/api/generate"
 
@@ -24,6 +24,7 @@ def stream_response():
 
         try:
             with requests.post(OLLAMA_API_URL, json=payload, stream=True, timeout=60) as response:
+                response.raise_for_status()
                 for line in response.iter_lines():
                     if line:
                         chunk = json.loads(line.decode('utf-8'))
@@ -32,14 +33,14 @@ def stream_response():
         except requests.exceptions.RequestException as e:
             yield f"data: ⚠️ Server error: {str(e)}\n\n"
 
-    return Response(generate(), mimetype='text/event-stream')
-
+    return Response(generate(), mimetype='text/event-stream', headers={
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+    })
 
 @app.route('/health', methods=['GET'])
 def health():
     return jsonify({'status': 'ok'})
 
-
 if __name__ == '__main__':
-    # Update port here as needed
     app.run(debug=True, host='0.0.0.0', port=5001)
