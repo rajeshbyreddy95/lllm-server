@@ -23,7 +23,7 @@ def chat_response():
     data = request.get_json()
     prompt = data.get('message', '').strip()
     model = data.get('model', 'gemma3:4b')
-
+    print(prompt)
     if not prompt:
         return jsonify({"error": "Missing 'message' in request"}), 400
 
